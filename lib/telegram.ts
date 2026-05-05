@@ -10,6 +10,7 @@ export type TelegramUpdate = {
   update_id: number;
   message?: {
     message_id: number;
+    message_thread_id?: number;
     from?: { id: number; first_name?: string; username?: string };
     chat: { id: number; type: string };
     date: number;
@@ -17,25 +18,40 @@ export type TelegramUpdate = {
   };
 };
 
-export async function sendMessage(chatId: number, text: string): Promise<void> {
+type SendOpts = { messageThreadId?: number };
+
+export async function sendMessage(
+  chatId: number,
+  text: string,
+  opts: SendOpts = {},
+): Promise<void> {
+  const body: Record<string, unknown> = { chat_id: chatId, text };
+  if (opts.messageThreadId !== undefined) {
+    body.message_thread_id = opts.messageThreadId;
+  }
   const res = await fetch(`${TELEGRAM_API}/bot${token()}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Telegram sendMessage failed (${res.status}): ${body}`);
+    const errBody = await res.text();
+    throw new Error(`Telegram sendMessage failed (${res.status}): ${errBody}`);
   }
 }
 
 export async function sendChatAction(
   chatId: number,
   action: "typing" = "typing",
+  opts: SendOpts = {},
 ): Promise<void> {
+  const body: Record<string, unknown> = { chat_id: chatId, action };
+  if (opts.messageThreadId !== undefined) {
+    body.message_thread_id = opts.messageThreadId;
+  }
   await fetch(`${TELEGRAM_API}/bot${token()}/sendChatAction`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, action }),
+    body: JSON.stringify(body),
   }).catch(() => {});
 }

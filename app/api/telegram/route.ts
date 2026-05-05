@@ -40,7 +40,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  const isPrivate = message.chat.type === "private";
+  const agentThreadId = process.env.TELEGRAM_AGENT_THREAD_ID
+    ? Number(process.env.TELEGRAM_AGENT_THREAD_ID)
+    : undefined;
+  const isAgentTopic =
+    agentThreadId !== undefined &&
+    message.message_thread_id === agentThreadId;
+
+  if (!isPrivate && !isAgentTopic) {
+    return NextResponse.json({ ok: true });
+  }
+
   const chatId = message.chat.id;
+  const threadId = message.message_thread_id;
+  const sendOpts = threadId !== undefined ? { messageThreadId: threadId } : {};
   const text = message.text.trim();
 
   try {
@@ -48,16 +62,17 @@ export async function POST(req: NextRequest) {
       await sendMessage(
         chatId,
         "Hi! I'm a Claude-powered bot. Just send me a message. /clear resets our conversation.",
+        sendOpts,
       );
       return NextResponse.json({ ok: true });
     }
     if (text === "/clear" || text === "/reset") {
       await clearHistory(chatId);
-      await sendMessage(chatId, "Conversation cleared.");
+      await sendMessage(chatId, "Conversation cleared.", sendOpts);
       return NextResponse.json({ ok: true });
     }
 
-    await sendChatAction(chatId, "typing");
+    await sendChatAction(chatId, "typing", sendOpts);
 
     await appendHistory(chatId, { role: "user", content: text });
     const history = await loadHistory(chatId);
@@ -65,12 +80,13 @@ export async function POST(req: NextRequest) {
     const reply = await generateReply(history);
 
     await appendHistory(chatId, { role: "assistant", content: reply });
-    await sendMessage(chatId, reply);
+    await sendMessage(chatId, reply, sendOpts);
   } catch (err) {
     console.error("Bot error:", err);
     await sendMessage(
       chatId,
       "Something went wrong on my end. Please try again.",
+      sendOpts,
     ).catch(() => {});
   }
 
