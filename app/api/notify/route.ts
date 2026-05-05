@@ -35,10 +35,13 @@ function formatData(data: Record<string, unknown>): string {
 }
 
 function formatNotification(body: NotifyBody): string {
-  if (body.text) return body.text;
   const heading = HEADINGS[body.type];
-  const fields = body.data ? formatData(body.data) : "(no details provided)";
-  return `${heading}\n\n${fields}`;
+  const content = body.text
+    ? body.text
+    : body.data
+      ? formatData(body.data)
+      : "(no details provided)";
+  return `${heading}\n\n${content}`;
 }
 
 export async function POST(req: NextRequest) {
