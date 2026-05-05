@@ -9,6 +9,7 @@ type NotifyType = "application" | "seed";
 type NotifyBody = {
   type: NotifyType;
   text?: string;
+  url?: string;
   data?: Record<string, unknown>;
 };
 
@@ -41,7 +42,8 @@ function formatNotification(body: NotifyBody): string {
     : body.data
       ? formatData(body.data)
       : "(no details provided)";
-  return `${heading}\n\n${content}`;
+  const link = body.url ? `\n\n${body.url}` : "";
+  return `${heading}\n\n${content}${link}`;
 }
 
 export async function POST(req: NextRequest) {
