@@ -24,6 +24,13 @@ function humanizeKey(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function formatData(data: Record<string, unknown>): string {
   return Object.entries(data)
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
@@ -37,13 +44,15 @@ function formatData(data: Record<string, unknown>): string {
 
 function formatNotification(body: NotifyBody): string {
   const heading = HEADINGS[body.type];
-  const content = body.text
+  const rawContent = body.text
     ? body.text
     : body.data
       ? formatData(body.data)
       : "(no details provided)";
-  const link = body.url ? `\n\n${body.url}` : "";
-  return `${heading}\n\n${content}${link}`;
+  const link = body.url
+    ? `\n\n<a href="${escapeHtml(body.url)}">View on Notion</a>`
+    : "";
+  return `${heading}\n\n${escapeHtml(rawContent)}${link}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -85,11 +94,10 @@ export async function POST(req: NextRequest) {
   const text = formatNotification(body);
 
   try {
-    await sendMessage(
-      Number(chatIdRaw),
-      text,
-      threadIdRaw ? { messageThreadId: Number(threadIdRaw) } : {},
-    );
+    await sendMessage(Number(chatIdRaw), text, {
+      parseMode: "HTML",
+      ...(threadIdRaw ? { messageThreadId: Number(threadIdRaw) } : {}),
+    });
   } catch (err) {
     console.error("Notify error:", err);
     return NextResponse.json(

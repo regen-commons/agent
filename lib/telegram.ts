@@ -18,7 +18,10 @@ export type TelegramUpdate = {
   };
 };
 
-type SendOpts = { messageThreadId?: number };
+type SendOpts = {
+  messageThreadId?: number;
+  parseMode?: "HTML" | "MarkdownV2";
+};
 
 export async function sendMessage(
   chatId: number,
@@ -28,6 +31,9 @@ export async function sendMessage(
   const body: Record<string, unknown> = { chat_id: chatId, text };
   if (opts.messageThreadId !== undefined) {
     body.message_thread_id = opts.messageThreadId;
+  }
+  if (opts.parseMode) {
+    body.parse_mode = opts.parseMode;
   }
   const res = await fetch(`${TELEGRAM_API}/bot${token()}/sendMessage`, {
     method: "POST",
