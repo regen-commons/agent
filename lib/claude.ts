@@ -60,24 +60,34 @@ const notionGetPage = betaZodTool({
 });
 
 export async function generateReply(history: Msg[]): Promise<string> {
-  const runner = client.beta.messages.toolRunner({
+  const baseParams = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
-    tools: [notionSearch, notionGetPage],
     system: [
       {
-        type: "text",
+        type: "text" as const,
         text: systemPrompt(),
-        cache_control: { type: "ephemeral" },
+        cache_control: { type: "ephemeral" as const },
       },
     ],
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium" },
+    thinking: { type: "adaptive" as const },
+    output_config: { effort: "medium" as const },
     messages: history.map((m) => ({ role: m.role, content: m.content })),
+  };
+
+  if (!process.env.NOTION_TOKEN) {
+    const response = await client.messages.create(baseParams);
+    const textBlock = response.content.find(
+      (b): b is Anthropic.TextBlock => b.type === "text",
+    );
+    return textBlock?.text ?? "(no response)";
+  }
+
+  const runner = client.beta.messages.toolRunner({
+    ...baseParams,
+    tools: [notionSearch, notionGetPage],
   });
-
   const finalMessage = await runner.finalMessage();
-
   const textBlock = finalMessage.content.find(
     (b): b is Anthropic.Beta.BetaTextBlock => b.type === "text",
   );
