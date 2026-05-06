@@ -40,15 +40,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const isPrivate = message.chat.type === "private";
+  const groupChatId = process.env.TELEGRAM_GROUP_CHAT_ID
+    ? Number(process.env.TELEGRAM_GROUP_CHAT_ID)
+    : undefined;
   const agentThreadId = process.env.TELEGRAM_AGENT_THREAD_ID
     ? Number(process.env.TELEGRAM_AGENT_THREAD_ID)
     : undefined;
-  const isAgentTopic =
+  const isInAgentTopic =
+    groupChatId !== undefined &&
     agentThreadId !== undefined &&
+    message.chat.id === groupChatId &&
     message.message_thread_id === agentThreadId;
 
-  if (!isPrivate && !isAgentTopic) {
+  if (!isInAgentTopic) {
     return NextResponse.json({ ok: true });
   }
 
