@@ -1,11 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { z } from "zod";
+import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import { loadSkills } from "./skills";
 import { searchNotion, readNotionPage } from "./notion";
 import type { Msg } from "./memory";
-
-const client = new Anthropic();
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 2000;
@@ -17,22 +14,19 @@ function systemPrompt(): string {
   return skills ? `${base}\n\n## Skills\n\n${skills}` : base;
 }
 
-const notionSearch = betaZodTool({
+const notionSearch = betaTool({
   name: "notion_search",
   description:
     "Search the Regen Commons Notion workspace for pages and databases matching a query. Returns titles, IDs, and URLs. Use this first when the user asks about Regen Commons content and you don't already know which page to read.",
-  inputSchema: z.object({
-    query: z
-      .string()
-      .describe("Search terms — keywords from the user's question"),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(25)
-      .optional()
-      .describe("Max results to return (default 10)"),
-  }),
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Search terms from the user's question" },
+      limit: { type: "integer", minimum: 1, maximum: 25, description: "Maximum results, default 10" },
+    },
+    required: ["query"],
+    additionalProperties: false,
+  },
   run: async ({ query, limit }) => {
     const results = await searchNotion(query, limit ?? 10);
     if (results.length === 0) return "No matching pages found.";
@@ -42,24 +36,25 @@ const notionSearch = betaZodTool({
   },
 });
 
-const notionGetPage = betaZodTool({
+const notionGetPage = betaTool({
   name: "notion_get_page",
   description:
     "Read the contents of a Notion page by its ID or URL. Use this to retrieve the actual text the user is asking about. Returns top-level page content as plain text.",
-  inputSchema: z.object({
-    page_id_or_url: z
-      .string()
-      .describe(
-        "Notion page ID (32 hex chars) or full Notion URL. The Regen Commons Portal is 2aa06d25-70f2-80a8-b9d6-d3f5b8d639c0.",
-      ),
-  }),
+  inputSchema: {
+    type: "object",
+    properties: {
+      page_id_or_url: { type: "string", description: "Notion page ID or full Notion URL" },
+    },
+    required: ["page_id_or_url"],
+    additionalProperties: false,
+  },
   run: async ({ page_id_or_url }) => {
     const text = await readNotionPage(page_id_or_url);
     return text || "(page is empty or has no readable top-level content)";
   },
 });
 
-export async function generateReply(history: Msg[]): Promise<string> {
+export async function generateReply(history: Msg[], client = new Anthropic()): Promise<string> {
   const baseParams = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -87,7 +82,7 @@ export async function generateReply(history: Msg[]): Promise<string> {
     ...baseParams,
     tools: [notionSearch, notionGetPage],
   });
-  const finalMessage = await runner.finalMessage();
+  const finalMessage = await runner.runUntilDone();
   const textBlock = finalMessage.content.find(
     (b): b is Anthropic.Beta.BetaTextBlock => b.type === "text",
   );

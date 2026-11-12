@@ -39,10 +39,11 @@ export async function sendMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Telegram sendMessage failed (${res.status}): ${errBody}`);
+  const result = await res.json().catch(() => null);
+  if (!res.ok || result?.ok !== true) {
+    throw new Error(`Telegram sendMessage failed (${res.status})`);
   }
 }
 

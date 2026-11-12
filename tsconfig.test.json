@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs", "moduleResolution": "node", "noEmit": false,
+    "outDir": ".test-build", "incremental": false, "isolatedModules": false
+  },
+  "include": ["lib/notifications.ts", "tests/**/*.test.ts"],
+  "exclude": ["node_modules"]
+}

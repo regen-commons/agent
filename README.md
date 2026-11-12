@@ -1,13 +1,14 @@
 # Regen Commons Agent
 
-A Claude-powered Telegram bot for the RegenCommons community. Lives in the `Regen Commons | Steward Council` Telegram group, replies in the `Agent` topic, and posts notifications when applications or seeds are submitted via the website.
+A Claude-powered Telegram bot for the RegenCommons community. Lives in the `Regen Commons | Steward Council` Telegram group, replies in the `Agent` topic, and posts website submission notifications. Contact alerts are live.
 
 ## What it does today
 
 | Feature | Status | Where |
 |---|---|---|
 | Conversational replies in the Agent topic | ✅ Works | Telegram group, `Agent` topic only |
-| Application submission notifications | ✅ Works | Posts to Agent topic when someone submits `join.html` |
+| Application submission notifications | ✅ Works | Posts to Agent topic when someone submits a membership request |
+| Contact message notifications | Live | Short notice and private `/council#messages/<id>` link |
 | Seed submission notifications | ✅ Works | Posts to Agent topic when someone submits a seed |
 | Per-chat conversation memory | ✅ Works | Last 20 messages stored in Redis |
 | Skills system (filesystem-based prompts) | ✅ Works | `skills/*/SKILL.md` auto-loaded into system prompt |
@@ -24,31 +25,18 @@ A Claude-powered Telegram bot for the RegenCommons community. Lives in the `Rege
 
 This project is one of two repos that work together:
 
-```
-┌──────────────────────────┐         ┌──────────────────────────────┐
-│  regen-commons-site      │         │  regen-commons-agent (this)  │
-│  (the prototype)         │         │                              │
-│                          │ webhook │                              │
-│  POST /api/seeds  ──────────────►  │  POST /api/notify            │
-│  POST /api/apply  ──────────────►  │       │                      │
-│      │                   │         │       ▼                      │
-│      ▼                   │         │  Telegram group              │
-│  Notion (creates page)   │         │  Agent topic                 │
-└──────────────────────────┘         │       ▲                      │
-                                     │       │                      │
-[Telegram user in group]──webhook───►│  POST /api/telegram          │
-                                     │       │                      │
-                                     │       ▼                      │
-                                     │  Claude API ───► reply       │
-                                     │       ↕                      │
-                                     │  Upstash Redis               │
-                                     │  (conversation memory)       │
-                                     └──────────────────────────────┘
-```
+The website saves membership requests, seeds and contact messages in Supabase,
+then sends selected notifications to `/api/notify`. Contact correspondence stays
+in the council dashboard; Telegram receives a notice and link.
+
+Telegram delivers conversation updates to `/api/telegram`. That handler uses
+Claude for replies, Redis for conversation history and deduplication, and optional
+Notion tools for reference material. It has no private Supabase or Weave read tool.
+
 
 Two separate Vercel projects, two separate GitHub repos, deployed independently:
 - [`regen-commons-agent`](https://github.com/regen-commons/regen-commons-agent) — this repo, deployed at `regen-commons-agent.vercel.app`
-- [`regen-commons-site`](https://github.com/regen-commons/regen-commons-site) — the public site (locally `RegenCommons/prototype/`), deployed at `regen-commons-site.vercel.app`. Has its own README; relevant files for this integration are `api/apply.js`, `api/seeds.js`, and `api/_lib/notify.js`.
+- [`regen-commons-site`](https://github.com/regen-commons/regen-commons-site) — the public site, deployed at `regen-commons-site.vercel.app`. Has its own README; relevant files include `api/_lib/public-data.js`, `api/_lib/intake-notifications.js`, and `api/_lib/contact-notifications.js`.
 
 The two projects communicate via HTTP. They share a `NOTIFY_WEBHOOK_SECRET` for auth (must be the same value in both projects).
 
@@ -60,13 +48,13 @@ This repo exposes two endpoints:
 - `POST /api/notify` — receives notification webhooks from the site. Validated via `Authorization: Bearer <NOTIFY_WEBHOOK_SECRET>`. Body shape:
   ```json
   {
-    "type": "application" | "seed",
+    "type": "application" | "seed" | "contact",
     "text"?: "string",
     "url"?: "string",
     "data"?: { ... }
   }
   ```
-  Renders a formatted message in the Agent topic with a clickable "View on Notion" link if `url` is provided.
+  Renders a formatted message in the Agent topic. Council links say "Open council dashboard"; contact alerts say "Open message in council dashboard". Legacy Notion URLs retain a Notion label.
 
 ## Repo layout
 
@@ -79,6 +67,7 @@ regen-commons-agent/
 │   ├── layout.tsx
 │   └── page.tsx                ← placeholder homepage
 ├── lib/
+│   ├── notifications.ts        ← validated notification types and destination labels
 │   ├── claude.ts               ← model + system prompt + (conditional) Notion tools
 │   ├── telegram.ts             ← sendMessage / sendChatAction (with HTML mode + thread support)
 │   ├── memory.ts               ← Redis-backed history + update dedup
@@ -128,7 +117,7 @@ The site (`regen-commons-site`) needs the matching counterparts:
 ### Notifications
 
 - `/api/notify` requires the Bearer token to match `NOTIFY_WEBHOOK_SECRET`.
-- The format is rendered with Telegram HTML parse mode. User-supplied content is HTML-escaped; the Notion URL is wrapped as a `<a>` link rendering as "View on Notion".
+- The format is rendered with Telegram HTML parse mode. User-supplied content is HTML-escaped; HTTPS links are escaped and labelled for their destination. Contact alerts contain a dashboard link, with the full correspondence kept in Supabase.
 - If `url` is omitted, no link is rendered (just the heading + text).
 
 ### Memory
@@ -303,7 +292,7 @@ Edit the `output_config.effort` value in `lib/claude.ts`. Options: `low | medium
 | `/api/notify` returns 401 | `NOTIFY_WEBHOOK_SECRET` mismatch between caller and the agent. Both projects must have the same value. |
 | `/api/notify` returns 405 | Trailing slash or whitespace in the caller's `NOTIFY_URL`. The notify helper now `.trim()`s, but check the env var anyway. |
 | `/api/notify` returns 500 with "TELEGRAM_GROUP_CHAT_ID not configured" | Env var missing, add it to Vercel and redeploy |
-| Notion notification message has no "View on Notion" link | `url` not passed in the body; HTML mode wraps it as a link only when present |
+| Submission notification has no dashboard link | `url` not passed in the body; a link is rendered only when a valid HTTPS URL is present |
 | Bot replies "I can't access Notion" | `NOTION_TOKEN` missing on the agent's project, or the integration isn't shared with the page being asked about; OR new code not deployed |
 | Notion API returns `validation_error: "X is not a property that exists"` | The Notion DB schema changed; either add the property back or remove it from the code (e.g., `apply.js` / `seeds.js` in the site repo) |
 
@@ -327,3 +316,15 @@ Then trigger the action in question.
 - **Maintained by:** Patricia Parkinson (kosmicgarden@proton.me) and steward collaborators
 - **Related project:** [`regen-commons-site`](https://github.com/regen-commons/regen-commons-site) (the public website)
 - **License:** TBD
+
+## Contact notifications and verification
+
+The website sends `type: "contact"` after the message is saved in Supabase. The
+alert contains a short notice and `/council#messages/<id>`. It contains no sender
+email or message body. Deploy this agent update before enabling the website form.
+The website retains delivery state separately from the saved message; uncertain
+delivery needs review rather than an automatic resend.
+
+Run `npm test` for notification formatting/validation and `npm run typecheck`.
+Tests do not call Telegram, Redis, Notion or Anthropic. The current agent review
+and proposed Weave work are in [docs/agent-review.md](docs/agent-review.md).
