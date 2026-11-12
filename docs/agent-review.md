@@ -100,3 +100,22 @@ Release order: agent notification update, website contact migration, website
 update, then one authorized synthetic contact through the hosted page. Verify the
 council message and Telegram link and remove the synthetic correspondence. Keep
 the form off the live site until those pieces are ready together.
+
+## Authorized release — 11 November 2026
+
+Commit `d6f201a1be1c286f94ee1ac4f80fe28a6a67d0d2` on
+`codex/contact-notifications` is deployed as production
+`dpl_C1C4p6xM6bwXse12YbMsHCyB8NS1`, READY. The existing
+`regen-commons-agent.vercel.app` alias resolves to it. No production credentials
+or destination settings were changed. `main` remains unchanged.
+
+The website’s authorized live test saved one synthetic contact at 5:34 p.m. PST.
+Its worker received the agent’s success response and recorded Sent after the
+Telegram API acknowledged the post. The authenticated council browser showed
+the same record and delivery state. The group UI was not independently read.
+An unauthenticated `/api/notify` request returned 401, and deployment-scoped
+error/fatal logs were empty during the immediate verification window.
+
+The website’s `docs/contact-messages.md` records its applied migration, exact
+website commit/deployment, synthetic record and rollback targets. This release
+does not resolve the remaining review items above or add private Weave tools.

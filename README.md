@@ -1,6 +1,6 @@
 # Regen Commons Agent
 
-A Claude-powered Telegram bot for the RegenCommons community. Lives in the `Regen Commons | Steward Council` Telegram group, replies in the `Agent` topic, and posts website submission notifications. Contact alerts are implemented locally in the current change.
+A Claude-powered Telegram bot for the RegenCommons community. Lives in the `Regen Commons | Steward Council` Telegram group, replies in the `Agent` topic, and posts website submission notifications. Contact alerts are live.
 
 ## What it does today
 
@@ -8,7 +8,7 @@ A Claude-powered Telegram bot for the RegenCommons community. Lives in the `Rege
 |---|---|---|
 | Conversational replies in the Agent topic | ✅ Works | Telegram group, `Agent` topic only |
 | Application submission notifications | ✅ Works | Posts to Agent topic when someone submits a membership request |
-| Contact message notifications | Implemented locally | Short notice and private `/council#messages/<id>` link |
+| Contact message notifications | Live | Short notice and private `/council#messages/<id>` link |
 | Seed submission notifications | ✅ Works | Posts to Agent topic when someone submits a seed |
 | Per-chat conversation memory | ✅ Works | Last 20 messages stored in Redis |
 | Skills system (filesystem-based prompts) | ✅ Works | `skills/*/SKILL.md` auto-loaded into system prompt |
